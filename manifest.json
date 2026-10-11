@@ -1,7 +1,8 @@
 {
-  "name": "Loren's Stuff",
-  "short_name": "Loren's Stuff",
-  "description": "Personal dashboard, multi-calculators & pixel cat vibe-coded with Antigravity",
+  "id": "daily-deck-pwa",
+  "name": "Daily Deck",
+  "short_name": "Daily Deck",
+  "description": "Daily snapshot, wealth simulators, health metrics & pixel cat vibe-coded with Antigravity",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

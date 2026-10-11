@@ -46,25 +46,42 @@ function getWeatherDescription(code) {
     return { text: 'Fair', icon: '⛅' };
 }
 
-// 3. Fetch Mountain View Weather + Sunset + AQI
-async function fetchMountainViewFull() {
+// 3. Fetch Local Weather + Sunset + AQI for Selected City & Unit
+const CITIES = {
+    'mountain-view': { name: 'Mountain View, CA', lat: 37.3861, lon: -122.0839, timezone: 'America%2FLos_Angeles' },
+    'san-francisco': { name: 'San Francisco, CA', lat: 37.7749, lon: -122.4194, timezone: 'America%2FLos_Angeles' },
+    'san-jose': { name: 'San Jose, CA', lat: 37.3382, lon: -121.8863, timezone: 'America%2FLos_Angeles' },
+    'new-york': { name: 'New York, NY', lat: 40.7128, lon: -74.0060, timezone: 'America%2FNew_York' },
+    'seattle': { name: 'Seattle, WA', lat: 47.6062, lon: -122.3321, timezone: 'America%2FLos_Angeles' },
+    'austin': { name: 'Austin, TX', lat: 30.2672, lon: -97.7431, timezone: 'America%2FChicago' },
+    'london': { name: 'London, UK', lat: 51.5074, lon: -0.1278, timezone: 'Europe%2FLondon' },
+    'tokyo': { name: 'Tokyo, Japan', lat: 35.6762, lon: 139.6503, timezone: 'Asia%2FTokyo' }
+};
+
+async function fetchCityWeather(cityKey = 'mountain-view', unit = 'fahrenheit') {
+    const city = CITIES[cityKey] || CITIES['mountain-view'];
+    const unitSymbol = unit === 'celsius' ? '°C' : '°F';
+    const windUnit = unit === 'celsius' ? 'kmh' : 'mph';
+    const windSymbol = unit === 'celsius' ? 'km/h' : 'mph';
+
     const weatherResult = {
-        temp: '66°F',
-        apparent: 'Feels like 61°F',
+        cityName: city.name,
+        temp: unit === 'celsius' ? '19°C' : '66°F',
+        apparent: unit === 'celsius' ? 'Feels like 16°C' : 'Feels like 61°F',
         condition: 'Clear Sky',
         icon: '☀️',
-        aqi: 60,
-        aqiCategory: 'Moderate',
-        aqiColorClass: 'bg-amber-100 text-amber-800 border-amber-300',
+        aqi: 45,
+        aqiCategory: 'Good',
+        aqiColorClass: 'bg-emerald-100 text-emerald-800 border-emerald-300',
         sunsetTime: '6:37 PM',
         sunsetCountdown: 'in 1 hr 08m 🌅',
-        details: 'Humidity 48% • Wind 8 mph'
+        details: 'Humidity 48% • Wind 8 ' + windSymbol
     };
 
     try {
         const [weatherRes, aqiRes] = await Promise.allSettled([
-            fetch('https://api.open-meteo.com/v1/forecast?latitude=37.3861&longitude=-122.0839&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=sunset,sunrise&timezone=America%2FLos_Angeles&temperature_unit=fahrenheit&wind_speed_unit=mph'),
-            fetch('https://air-quality-api.open-meteo.com/v1/air-quality?latitude=37.3861&longitude=-122.0839&current=us_aqi,pm2_5')
+            fetch(`https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=sunset,sunrise&timezone=${city.timezone}&temperature_unit=${unit}&wind_speed_unit=${windUnit}`),
+            fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${city.lat}&longitude=${city.lon}&current=us_aqi,pm2_5`)
         ]);
 
         if (weatherRes.status === 'fulfilled' && weatherRes.value.ok) {
@@ -156,11 +173,6 @@ async function fetchMarketsAndCrypto() {
             rate: '7.40%',
             change: '+0.12% wk',
             trend: 'Up from 7.28% last week • Freddie Mac PMMS'
-        },
-        bayAreaGas: {
-            price: '$4.89',
-            type: 'Regular Unleaded (Gal)',
-            trend: 'SF / Silicon Valley Avg • AAA Benchmark'
         }
     };
 
@@ -252,4 +264,18 @@ async function fetchNasaApod() {
     } catch (e) {
         return fallbackSpace;
     }
+}
+
+// 6. Gas Price Benchmarks by City (AAA Daily Averages)
+const GAS_PRICES = {
+    'bay-area': { name: 'Bay Area, CA', price: '$4.89', type: 'Regular Unleaded', trend: 'Silicon Valley / SF Avg • AAA' },
+    'los-angeles': { name: 'Los Angeles, CA', price: '$4.79', type: 'Regular Unleaded', trend: 'SoCal Metro Avg • AAA' },
+    'seattle': { name: 'Seattle, WA', price: '$4.55', type: 'Regular Unleaded', trend: 'Puget Sound Metro • AAA' },
+    'austin': { name: 'Austin, TX', price: '$2.99', type: 'Regular Unleaded', trend: 'Central Texas Avg • AAA' },
+    'new-york': { name: 'New York, NY', price: '$3.45', type: 'Regular Unleaded', trend: 'NY Metro Area Avg • AAA' },
+    'national': { name: 'US National Avg', price: '$3.38', type: 'Regular Unleaded', trend: 'US Nationwide Avg • AAA' }
+};
+
+function getCityGasPrice(cityKey = 'bay-area') {
+    return GAS_PRICES[cityKey] || GAS_PRICES['bay-area'];
 }

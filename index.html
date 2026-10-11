@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#F7F6F2">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <link rel="manifest" href="manifest.json">
-    <title>OmniCalc Studio — Vibe-Coded with Antigravity</title>
+    <meta name="apple-mobile-web-app-title" content="Daily Deck">
+    <meta name="application-name" content="Daily Deck">
+    <link rel="manifest" href="manifest.json?v=8">
+    <title>Daily Deck — Vibe-Coded with Antigravity</title>
     <!-- Tailwind CSS with Sanzo Wada #305 Light Theme Config -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -51,7 +52,7 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
 
-        /* Pixel Cat Walking Animation */
+        /* Pixel Cat Walking & State Animations */
         .pixel-cat-container {
             position: fixed;
             bottom: 12px;
@@ -61,6 +62,7 @@
             cursor: pointer;
             filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.12));
             user-select: none;
+            transition: left 0.4s ease-out, bottom 0.4s ease-out;
         }
 
         .pixel-cat {
@@ -73,6 +75,23 @@
             image-rendering: -moz-crisp-edges;
             image-rendering: crisp-edges;
             animation: cat-walk-cycle 0.72s steps(4) infinite, cat-pacing 16s ease-in-out infinite;
+        }
+
+        /* Running animation when chasing laser */
+        .pixel-cat.cat-running {
+            animation: cat-walk-cycle 0.28s steps(4) infinite !important;
+        }
+
+        /* Napping animation when idle */
+        .pixel-cat.cat-napping {
+            animation: cat-sleep 3s ease-in-out infinite !important;
+            background-position: 0px 0px !important;
+            transform: scaleY(0.85) scaleX(1) !important;
+        }
+
+        @keyframes cat-sleep {
+            0%, 100% { transform: scaleY(0.82) translateY(8px); }
+            50% { transform: scaleY(0.92) translateY(5px); }
         }
 
         @keyframes cat-walk-cycle {
@@ -93,6 +112,25 @@
             95% {
                 transform: translateX(0) scaleX(-1);
             }
+        }
+
+        /* Laser Dot */
+        .laser-dot {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            background-color: #ff0033;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #ff0033, 0 0 20px #ff3366;
+            pointer-events: none;
+            z-index: 10000;
+            transform: translate(-50%, -50%);
+            animation: pulse-laser 0.4s infinite alternate;
+        }
+
+        @keyframes pulse-laser {
+            from { transform: translate(-50%, -50%) scale(0.9); opacity: 0.85; }
+            to { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
         }
     </style>
 </head>
@@ -130,14 +168,10 @@
                     <span>Compound Interest</span>
                 </button>
 
-                <!-- Skeletons for future tools -->
-                <div class="pt-2 hidden md:block">
-                    <span class="px-2 text-[9px] uppercase font-bold text-slate-400 tracking-wider">Coming Soon</span>
-                </div>
-
-                <button disabled class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl text-xs font-semibold text-slate-400 opacity-60 cursor-not-allowed text-left w-full">
-                    <span class="text-base">🥗</span>
-                    <span>Macro Meal Split</span>
+                <!-- Tab 5: Rent vs. Buy Calculator -->
+                <button id="navBtnRentBuy" class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl text-xs font-bold text-left transition whitespace-nowrap text-slate-600 hover:bg-slate-50 hover:text-slate-900 border border-transparent w-full">
+                    <span class="text-base">🏡</span>
+                    <span>Rent vs. Buy</span>
                 </button>
             </nav>
         </aside>
@@ -596,6 +630,181 @@
             </div>
 
             <!-- ============================================================= -->
+            <!-- TAB 5: RENT VS. BUY CALCULATOR -->
+            <!-- ============================================================= -->
+            <div id="viewRentBuy" class="space-y-6 hidden">
+                <!-- Header -->
+                <header class="text-center">
+                    <h1 class="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">
+                        🏡 Rent vs. Buy Calculator
+                    </h1>
+                    <p class="text-xs text-wada-cinnamonDark font-medium mt-1">Opportunity Cost, Home Equity & Index Fund Growth Simulator</p>
+                </header>
+
+                <!-- Key Metrics Cards -->
+                <section class="grid grid-cols-3 gap-2.5">
+                    <!-- Winner & Advantage -->
+                    <div class="bg-wada-surface p-3 rounded-2xl border border-wada-border text-center">
+                        <span class="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Ahead After 15 Yrs</span>
+                        <div id="rbWinnerDisplay" class="text-lg md:text-xl font-extrabold text-wada-turquoiseDark mt-1">Buying Wins</div>
+                        <span id="rbAdvantageBadge" class="text-[10px] text-emerald-700 font-bold">+$142,500 ahead</span>
+                    </div>
+
+                    <!-- Monthly Housing Outlay -->
+                    <div class="bg-wada-surface p-3 rounded-2xl border border-wada-border text-center">
+                        <span class="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Buy vs Rent (Mo)</span>
+                        <div id="rbMonthlyDiffDisplay" class="text-lg md:text-xl font-extrabold text-slate-800 mt-1">+$1,840</div>
+                        <span id="rbOutlaySubtext" class="text-[10px] text-slate-400">Buy: $5,040 | Rent: $3,200</span>
+                    </div>
+
+                    <!-- Crossover Point -->
+                    <div class="bg-wada-surface p-3 rounded-2xl border border-wada-border text-center">
+                        <span class="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Break-Even Year</span>
+                        <div id="rbCrossoverDisplay" class="text-lg md:text-xl font-extrabold text-wada-citronDark mt-1">Year 6</div>
+                        <span class="text-[10px] text-slate-400">Equity overcomes rent</span>
+                    </div>
+                </section>
+
+                <!-- Chart: Cumulative Net Wealth (Home Equity vs Renter Investment Portfolio) -->
+                <section class="bg-wada-card p-4 rounded-3xl border border-wada-border shadow-sm space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Wealth Progression</span>
+                            <h2 class="text-sm font-extrabold text-slate-800">Home Equity (After Selling Fees) vs. Renter Portfolio</h2>
+                        </div>
+                        <span id="rbHorizonBadge" class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-800 border border-teal-300">
+                            15 Years Horizon
+                        </span>
+                    </div>
+
+                    <div class="relative w-full h-64 md:h-72">
+                        <canvas id="rentBuyChart"></canvas>
+                    </div>
+
+                    <!-- Clean Legend -->
+                    <div class="flex justify-center items-center flex-wrap gap-4 text-[11px] text-slate-600 font-medium pt-1">
+                        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#B5DECC] inline-block border border-teal-300"></span>Buyer Net Wealth (Home Equity)</span>
+                        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#EEB480] inline-block border border-amber-300"></span>Renter Portfolio (Deposit + Savings)</span>
+                    </div>
+                </section>
+
+                <!-- Insight Card -->
+                <section id="rentBuyInsightCard" class="bg-gradient-to-br from-teal-50/70 via-emerald-50/40 to-amber-50/30 p-4 rounded-2xl border border-teal-200/80 shadow-sm space-y-1.5">
+                    <div class="flex items-center gap-2">
+                        <span class="text-base">💡</span>
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-wada-turquoiseDark">Financial Opportunity Cost Breakdown</h3>
+                        <span id="rbInsightBadge" class="ml-auto text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-800 border border-teal-300">
+                            Homeowner Advantage
+                        </span>
+                    </div>
+                    <p id="rbFactSentence" class="text-xs text-slate-700 leading-relaxed font-medium">
+                        If you rent at <strong>$3,200/mo</strong> and invest your <strong>$170,000 down payment</strong> plus the <strong>$1,840/mo difference</strong> at 7.5%, your stock portfolio grows to <strong>$780,000</strong>. Buying builds <strong>$922,500 in net home equity</strong>—coming out ahead by <strong>$142,500</strong>!
+                    </p>
+                </section>
+
+                <!-- User Inputs Form -->
+                <section class="space-y-4">
+                    <!-- Home Price & Down Payment -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label for="rbHomePrice" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+                                Home Purchase Price ($)
+                            </label>
+                            <div class="relative">
+                                <span class="absolute left-3.5 top-2.5 text-slate-400 font-semibold">$</span>
+                                <input id="rbHomePrice" type="text" inputmode="numeric" value="850,000"
+                                    class="w-full bg-white border border-slate-300 rounded-xl pl-8 pr-4 py-2 text-slate-800 font-semibold focus:outline-none focus:border-wada-turquoiseDark focus:ring-1 focus:ring-wada-turquoiseDark transition">
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label for="rbDownPercent" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                                    Down Payment (%)
+                                </label>
+                                <span id="rbDownDollarAmount" class="text-xs font-extrabold text-wada-turquoiseDark bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
+                                    $170,000
+                                </span>
+                            </div>
+                            <div class="relative">
+                                <input id="rbDownPercent" type="number" value="20" min="0" max="100" step="1"
+                                    class="w-full bg-white border border-slate-300 rounded-xl pl-3.5 pr-8 py-2 text-slate-800 font-semibold focus:outline-none focus:border-wada-turquoiseDark focus:ring-1 focus:ring-wada-turquoiseDark transition">
+                                <span class="absolute right-3.5 top-2.5 text-slate-400 font-semibold">%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Monthly Rent & HOA -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label for="rbRentMonthly" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+                                Monthly Rent ($)
+                            </label>
+                            <div class="relative">
+                                <span class="absolute left-3.5 top-2.5 text-slate-400 font-semibold">$</span>
+                                <input id="rbRentMonthly" type="text" inputmode="numeric" value="3,200"
+                                    class="w-full bg-white border border-slate-300 rounded-xl pl-8 pr-4 py-2 text-slate-800 font-semibold focus:outline-none focus:border-wada-turquoiseDark focus:ring-1 focus:ring-wada-turquoiseDark transition">
+                            </div>
+                        </div>
+                        <div>
+                            <label for="rbHoaMonthly" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+                                Monthly HOA Fee ($)
+                            </label>
+                            <div class="relative">
+                                <span class="absolute left-3.5 top-2.5 text-slate-400 font-semibold">$</span>
+                                <input id="rbHoaMonthly" type="text" inputmode="numeric" value="350"
+                                    class="w-full bg-white border border-slate-300 rounded-xl pl-8 pr-4 py-2 text-slate-800 font-semibold focus:outline-none focus:border-wada-turquoiseDark focus:ring-1 focus:ring-wada-turquoiseDark transition">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mortgage Rate & Investment Return -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label for="rbMortgageRate" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+                                Mortgage Rate (% / yr)
+                            </label>
+                            <div class="relative">
+                                <input id="rbMortgageRate" type="number" value="6.8" step="0.1" min="1" max="15"
+                                    class="w-full bg-white border border-slate-300 rounded-xl pl-3.5 pr-8 py-2 text-slate-800 font-semibold focus:outline-none focus:border-wada-turquoiseDark focus:ring-1 focus:ring-wada-turquoiseDark transition">
+                                <span class="absolute right-3.5 top-2.5 text-slate-400 font-semibold">%</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="rbReturnRate" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+                                Stock Return (% / yr)
+                            </label>
+                            <div class="relative">
+                                <input id="rbReturnRate" type="number" value="7.5" step="0.5" min="1" max="20"
+                                    class="w-full bg-white border border-slate-300 rounded-xl pl-3.5 pr-8 py-2 text-slate-800 font-semibold focus:outline-none focus:border-wada-turquoiseDark focus:ring-1 focus:ring-wada-turquoiseDark transition">
+                                <span class="absolute right-3.5 top-2.5 text-slate-400 font-semibold">%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Horizon & Home Appreciation -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label for="rbHorizonYears" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+                                Comparison Horizon (Years)
+                            </label>
+                            <input id="rbHorizonYears" type="number" value="15" min="2" max="30"
+                                class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 font-semibold focus:outline-none focus:border-wada-turquoiseDark focus:ring-1 focus:ring-wada-turquoiseDark transition">
+                        </div>
+                        <div>
+                            <label for="rbAppreciationRate" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+                                Home Appreciation (% / yr)
+                            </label>
+                            <div class="relative">
+                                <input id="rbAppreciationRate" type="number" value="3.5" step="0.5" min="0" max="10"
+                                    class="w-full bg-white border border-slate-300 rounded-xl pl-3.5 pr-8 py-2 text-slate-800 font-semibold focus:outline-none focus:border-wada-turquoiseDark focus:ring-1 focus:ring-wada-turquoiseDark transition">
+                                <span class="absolute right-3.5 top-2.5 text-slate-400 font-semibold">%</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- ============================================================= -->
             <!-- TAB 1: WHAT'S HAPPENING TODAY -->
             <!-- ============================================================= -->
             <div id="viewToday" class="space-y-6">
@@ -712,37 +921,63 @@
                         </div>
                     </div>
 
-                    <!-- 5. Bay Area Gas Price -->
+                    <!-- 5. Gas Price with City Selector -->
                     <div class="bg-wada-surface p-4 rounded-2xl border border-wada-border shadow-sm flex flex-col justify-between">
                         <div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-[11px] font-black uppercase tracking-wider text-slate-400">California Energy</span>
-                                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">AAA PMMS</span>
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-[11px] font-black uppercase tracking-wider text-slate-400">Gas Price</span>
+                                <select id="gasCitySelect" class="bg-white border border-slate-300 rounded-lg text-[10px] font-bold text-slate-700 px-2 py-0.5 focus:outline-none focus:border-wada-turquoiseDark cursor-pointer shadow-sm">
+                                    <option value="bay-area" selected>Bay Area, CA</option>
+                                    <option value="los-angeles">Los Angeles, CA</option>
+                                    <option value="seattle">Seattle, WA</option>
+                                    <option value="austin">Austin, TX</option>
+                                    <option value="new-york">New York, NY</option>
+                                    <option value="national">US National Avg</option>
+                                </select>
                             </div>
-                            <h3 class="text-sm font-extrabold text-slate-800 mt-1">Bay Area Gas Price</h3>
+                            <h3 id="gasCityHeading" class="text-sm font-extrabold text-slate-800 mt-2">Bay Area, CA</h3>
                             <div class="flex items-baseline gap-2 mt-2">
                                 <span id="gasPrice" class="text-2xl font-black text-slate-900 tracking-tight">$4.89</span>
                                 <span class="text-xs font-bold text-slate-500">/ gallon</span>
                             </div>
-                            <p id="gasDetails" class="text-[11px] text-slate-500 mt-2 font-medium">SF / Silicon Valley Avg • Regular Unleaded</p>
+                            <p id="gasDetails" class="text-[11px] text-slate-500 mt-2 font-medium">Silicon Valley / SF Avg • AAA</p>
                         </div>
                     </div>
 
-                    <!-- 6. Mountain View Weather + AQI + Sunset Countdown -->
+                    <!-- 6. Local Weather + AQI + Sunset Countdown -->
                     <div class="bg-wada-surface p-4 rounded-2xl border border-wada-border shadow-sm flex flex-col justify-between">
                         <div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-[11px] font-black uppercase tracking-wider text-slate-400">Local Mountain View</span>
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-[11px] font-black uppercase tracking-wider text-slate-400">Local Weather</span>
+                                <div class="flex items-center gap-1.5">
+                                    <!-- City Select -->
+                                    <select id="weatherCitySelect" class="bg-white border border-slate-300 rounded-lg text-[10px] font-bold text-slate-700 px-2 py-0.5 focus:outline-none focus:border-wada-turquoiseDark cursor-pointer shadow-sm">
+                                        <option value="mountain-view" selected>Mountain View</option>
+                                        <option value="san-francisco">San Francisco</option>
+                                        <option value="san-jose">San Jose</option>
+                                        <option value="seattle">Seattle</option>
+                                        <option value="austin">Austin</option>
+                                        <option value="new-york">New York</option>
+                                        <option value="london">London</option>
+                                        <option value="tokyo">Tokyo</option>
+                                    </select>
+                                    <!-- Unit Toggle -->
+                                    <button id="weatherUnitToggle" type="button" class="bg-white border border-slate-300 hover:border-wada-turquoiseDark rounded-lg text-[10px] font-black text-slate-700 px-1.5 py-0.5 transition shadow-sm" title="Toggle °F / °C">
+                                        °F
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between mt-2">
+                                <h3 id="weatherCityHeading" class="text-sm font-extrabold text-slate-800">Mountain View, CA</h3>
                                 <span id="weatherIcon" class="text-xl">☀️</span>
                             </div>
-                            <h3 class="text-sm font-extrabold text-slate-800 mt-1">Mountain View, CA</h3>
                             <div class="flex items-baseline gap-2 mt-2">
                                 <span id="weatherTemp" class="text-2xl font-black text-slate-900 tracking-tight">66°F</span>
                                 
                                 <!-- Condition + AQI Badge side by side -->
                                 <div class="flex items-center gap-1.5 flex-wrap">
                                     <span id="weatherCondition" class="text-xs font-bold px-2 py-0.5 rounded-md bg-sky-100 text-sky-800 border border-sky-300">Clear Sky</span>
-                                    <span id="weatherAqiBadge" class="text-xs font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300">AQI: 60 (Moderate)</span>
+                                    <span id="weatherAqiBadge" class="text-xs font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300">AQI: 45 (Good)</span>
                                 </div>
                             </div>
                             <p id="weatherDetails" class="text-[11px] text-slate-500 mt-1 font-medium">Feels like 61°F • Humidity 48% • Wind 8 mph</p>
@@ -760,36 +995,6 @@
                     </div>
 
                 </section>
-
-                <!-- 3. NASA Astronomy Picture of the Day -->
-                <section class="bg-wada-surface p-4 rounded-2xl border border-wada-border shadow-sm space-y-3">
-                    <div class="flex items-center justify-between">
-                        <span class="text-[11px] font-black uppercase tracking-wider text-slate-400">NASA Astronomy Picture of the Day</span>
-                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">James Webb Space Telescope</span>
-                    </div>
-                    <div class="relative w-full h-56 md:h-64 rounded-xl overflow-hidden bg-slate-900 border border-slate-200 shadow-inner">
-                        <img id="nasaApodImage" src="https://assets.science.nasa.gov/dynamicimage/assets/science/missions/webb/science/2022/07/STScI-01GA6KKWG229B16K4Q38CH3BXS.png?w=1200" alt="Cosmic Cliffs of Carina Nebula" class="w-full h-full object-cover">
-                    </div>
-                    <div>
-                        <h4 id="nasaApodTitle" class="text-sm font-extrabold text-slate-800">Cosmic Cliffs: Star Birth in the Carina Nebula</h4>
-                        <p id="nasaApodExplanation" class="text-xs text-slate-500 mt-1 leading-relaxed">
-                            Captured by the James Webb Space Telescope (JWST), this dramatic landscape of "mountains" and "valleys" speckled with glittering stars reveals previously invisible areas of star birth in NGC 3324.
-                        </p>
-                    </div>
-                </section>
-
-                <!-- 4. Quick Google Shortcuts Bar -->
-                <section class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
-                    <span class="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Quick Google Searches</span>
-                    <div class="flex flex-wrap gap-2 text-xs">
-                        <a href="https://www.google.com/search?q=S%26P+500+today" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 bg-white border border-slate-300 hover:border-slate-500 rounded-lg text-slate-700 font-semibold transition">S&P 500 Today ↗</a>
-                        <a href="https://www.google.com/search?q=Bitcoin+price" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 bg-white border border-slate-300 hover:border-slate-500 rounded-lg text-slate-700 font-semibold transition">Bitcoin Price ↗</a>
-                        <a href="https://www.google.com/search?q=GOOGL+stock+news" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 bg-white border border-slate-300 hover:border-slate-500 rounded-lg text-slate-700 font-semibold transition">GOOGL News ↗</a>
-                        <a href="https://www.google.com/search?q=current+mortgage+rates" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 bg-white border border-slate-300 hover:border-slate-500 rounded-lg text-slate-700 font-semibold transition">Current Mortgage Rates ↗</a>
-                        <a href="https://www.google.com/search?q=gas+prices+near+me" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 bg-white border border-slate-300 hover:border-slate-500 rounded-lg text-slate-700 font-semibold transition">Gas Prices ↗</a>
-                        <a href="https://www.google.com/search?q=Mountain+View+CA+10+day+forecast" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 bg-white border border-slate-300 hover:border-slate-500 rounded-lg text-slate-700 font-semibold transition">Mountain View Forecast ↗</a>
-                    </div>
-                </section>
             </div>
 
             <!-- Footer Note -->
@@ -800,15 +1005,21 @@
         </main>
     </div>
 
-    <!-- The Pixel Cat Walking in Bottom-Left Corner -->
-    <div id="pixelCatContainer" class="pixel-cat-container" title="Loren's Cat (click me!)">
-        <div id="pixelCat" class="pixel-cat"></div>
+    <!-- The Pixel Cat with Nap / Sleep Button -->
+    <div id="pixelCatContainer" class="pixel-cat-container flex flex-col items-center">
+        <!-- Sleep / Wake Toggle Button -->
+        <button id="catNapToggleBtn" type="button" class="mb-1 bg-white/95 hover:bg-slate-50 border border-slate-300 shadow-sm text-[10px] font-black text-slate-700 px-2 py-0.5 rounded-full flex items-center gap-1 transition active:scale-95" title="Put cat to nap / wake up">
+            <span id="catNapIcon">💤</span>
+            <span id="catNapLabel">Sleep</span>
+        </button>
+        <div id="pixelCat" class="pixel-cat" title="Click me to pet!"></div>
     </div>
 
     <!-- Connect scripts -->
     <script src="calculator.js"></script>
     <script src="metabolic.js"></script>
     <script src="compound.js"></script>
+    <script src="rent_vs_buy.js"></script>
     <script src="today.js"></script>
     <script src="app.js"></script>
     <script>

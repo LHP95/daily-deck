@@ -19,11 +19,13 @@ const WADA305 = {
 const navBtnFire = document.getElementById('navBtnFire');
 const navBtnMetabolic = document.getElementById('navBtnMetabolic');
 const navBtnCompound = document.getElementById('navBtnCompound');
+const navBtnRentBuy = document.getElementById('navBtnRentBuy');
 const navBtnToday = document.getElementById('navBtnToday');
 
 const viewFire = document.getElementById('viewFire');
 const viewMetabolic = document.getElementById('viewMetabolic');
 const viewCompound = document.getElementById('viewCompound');
+const viewRentBuy = document.getElementById('viewRentBuy');
 const viewToday = document.getElementById('viewToday');
 
 const ACTIVE_TAB_CLASS = "flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl text-xs font-bold text-left transition whitespace-nowrap bg-teal-50 text-wada-turquoiseDark border border-teal-200 shadow-sm w-full";
@@ -34,11 +36,13 @@ function switchTab(activeTab) {
     viewFire.classList.add('hidden');
     viewMetabolic.classList.add('hidden');
     viewCompound.classList.add('hidden');
+    if (viewRentBuy) viewRentBuy.classList.add('hidden');
     viewToday.classList.add('hidden');
 
     navBtnFire.className = INACTIVE_TAB_CLASS;
     navBtnMetabolic.className = INACTIVE_TAB_CLASS;
     navBtnCompound.className = INACTIVE_TAB_CLASS;
+    if (navBtnRentBuy) navBtnRentBuy.className = INACTIVE_TAB_CLASS;
     navBtnToday.className = INACTIVE_TAB_CLASS;
 
     if (activeTab === 'fire') {
@@ -58,6 +62,15 @@ function switchTab(activeTab) {
             compoundChart.resize();
         }
         updateCompoundCalculator();
+    } else if (activeTab === 'rentbuy') {
+        if (viewRentBuy) viewRentBuy.classList.remove('hidden');
+        if (navBtnRentBuy) navBtnRentBuy.className = ACTIVE_TAB_CLASS;
+        if (!rentBuyChart) {
+            initRentBuyChart();
+        } else {
+            rentBuyChart.resize();
+        }
+        updateRentBuyCalculator();
     } else if (activeTab === 'today') {
         viewToday.classList.remove('hidden');
         navBtnToday.className = ACTIVE_TAB_CLASS;
@@ -68,6 +81,7 @@ function switchTab(activeTab) {
 navBtnFire.addEventListener('click', () => switchTab('fire'));
 navBtnMetabolic.addEventListener('click', () => switchTab('metabolic'));
 navBtnCompound.addEventListener('click', () => switchTab('compound'));
+if (navBtnRentBuy) navBtnRentBuy.addEventListener('click', () => switchTab('rentbuy'));
 navBtnToday.addEventListener('click', () => switchTab('today'));
 
 // ============================================================================
@@ -657,6 +671,228 @@ function updateCompoundCalculator() {
 ciFrequencySelect.addEventListener('change', updateCompoundCalculator);
 
 // ============================================================================
+// TAB 5: RENT VS. BUY CONTROLLER
+// ============================================================================
+const rbHomePriceInput = document.getElementById('rbHomePrice');
+const rbDownPercentInput = document.getElementById('rbDownPercent');
+const rbDownDollarAmount = document.getElementById('rbDownDollarAmount');
+const rbRentMonthlyInput = document.getElementById('rbRentMonthly');
+const rbHoaMonthlyInput = document.getElementById('rbHoaMonthly');
+const rbMortgageRateInput = document.getElementById('rbMortgageRate');
+const rbReturnRateInput = document.getElementById('rbReturnRate');
+const rbHorizonYearsInput = document.getElementById('rbHorizonYears');
+const rbAppreciationRateInput = document.getElementById('rbAppreciationRate');
+
+const rbWinnerDisplay = document.getElementById('rbWinnerDisplay');
+const rbAdvantageBadge = document.getElementById('rbAdvantageBadge');
+const rbMonthlyDiffDisplay = document.getElementById('rbMonthlyDiffDisplay');
+const rbOutlaySubtext = document.getElementById('rbOutlaySubtext');
+const rbCrossoverDisplay = document.getElementById('rbCrossoverDisplay');
+const rbHorizonBadge = document.getElementById('rbHorizonBadge');
+const rbInsightBadge = document.getElementById('rbInsightBadge');
+const rbFactSentence = document.getElementById('rbFactSentence');
+
+let rentBuyChart = null;
+let currentRentBuyTimeline = [];
+
+function handleRbCurrencyInput(e) {
+    const input = e.target;
+    const oldVal = input.value;
+    const oldLength = oldVal.length;
+    const oldCursor = input.selectionStart || 0;
+
+    const digitsOnly = oldVal.replace(/\D/g, '');
+    if (!digitsOnly) {
+        input.value = '';
+    } else {
+        input.value = Number(digitsOnly).toLocaleString();
+    }
+
+    const newLength = input.value.length;
+    const newCursor = Math.max(0, oldCursor + (newLength - oldLength));
+    input.setSelectionRange(newCursor, newCursor);
+
+    updateRentBuyCalculator();
+}
+
+function initRentBuyChart() {
+    const canvas = document.getElementById('rentBuyChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    rentBuyChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Buyer Net Wealth',
+                    data: [],
+                    backgroundColor: 'rgba(181, 222, 204, 0.40)',
+                    borderColor: '#1E6B57',
+                    borderWidth: 2.5,
+                    fill: 'origin',
+                    tension: 0.2,
+                    pointRadius: 0
+                },
+                {
+                    label: 'Renter Investment Portfolio',
+                    data: [],
+                    backgroundColor: 'rgba(238, 180, 128, 0.35)',
+                    borderColor: '#B86F35',
+                    borderWidth: 2.5,
+                    fill: 'origin',
+                    tension: 0.2,
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                    titleColor: '#0f172a',
+                    bodyColor: '#334155',
+                    borderColor: '#cbd5e1',
+                    borderWidth: 1,
+                    padding: 12,
+                    callbacks: {
+                        label: function (context) {
+                            const index = context.dataIndex;
+                            const point = currentRentBuyTimeline[index];
+                            if (!point) return '';
+                            if (context.datasetIndex === 0) {
+                                return ` Buyer Net Wealth: $${point.buyerNetWealth.toLocaleString()} (Home: $${point.homeValue.toLocaleString()})`;
+                            } else if (context.datasetIndex === 1) {
+                                return ` Renter Portfolio: $${point.renterPortfolio.toLocaleString()}`;
+                            }
+                            return '';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(226, 232, 240, 0.8)' },
+                    ticks: { color: '#64748b', maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }
+                },
+                y: {
+                    grid: { color: 'rgba(226, 232, 240, 0.8)' },
+                    ticks: {
+                        color: '#64748b',
+                        callback: function (val) {
+                            if (val >= 1000000) return `$${(val / 1000000).toFixed(1)}M`;
+                            if (val >= 1000) return `$${(val / 1000).toFixed(0)}k`;
+                            return `$${val}`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateRentBuyCalculator() {
+    const homePrice = parseCurrency(rbHomePriceInput ? rbHomePriceInput.value : 850000) || 850000;
+    const downPercent = Number(rbDownPercentInput ? rbDownPercentInput.value : 20) || 0;
+    const downPayment = Math.round(homePrice * (downPercent / 100));
+
+    if (rbDownDollarAmount) {
+        rbDownDollarAmount.textContent = `$${downPayment.toLocaleString()}`;
+    }
+
+    const initialRentMonthly = parseCurrency(rbRentMonthlyInput ? rbRentMonthlyInput.value : 3200) || 3200;
+    const hoaMonthly = parseCurrency(rbHoaMonthlyInput ? rbHoaMonthlyInput.value : 350);
+    const mortgageRate = Number(rbMortgageRateInput ? rbMortgageRateInput.value : 6.8) || 6.8;
+    const investmentReturnRate = Number(rbReturnRateInput ? rbReturnRateInput.value : 7.5) || 7.5;
+    const horizonYears = Math.max(2, Math.min(30, Number(rbHorizonYearsInput ? rbHorizonYearsInput.value : 15) || 15));
+    const homeAppreciationRate = Number(rbAppreciationRateInput ? rbAppreciationRateInput.value : 3.5) || 3.5;
+
+    const result = calculateRentVsBuy({
+        homePrice,
+        downPayment,
+        mortgageRate,
+        loanTermYears: 30,
+        propertyTaxRate: 1.1,
+        homeInsuranceAnnual: 1800,
+        hoaMonthly,
+        maintenanceAnnualRate: 1.0,
+        homeAppreciationRate,
+        initialRentMonthly,
+        rentInflationRate: 3.0,
+        investmentReturnRate,
+        horizonYears
+    });
+
+    currentRentBuyTimeline = result.timeline;
+
+    if (rbWinnerDisplay) {
+        rbWinnerDisplay.textContent = result.buyerAhead ? "Buying Wins 🏡" : "Renting Wins 📈";
+        rbWinnerDisplay.className = result.buyerAhead
+            ? "text-lg md:text-xl font-extrabold text-wada-turquoiseDark mt-1"
+            : "text-lg md:text-xl font-extrabold text-wada-cinnamonDark mt-1";
+    }
+
+    if (rbAdvantageBadge) {
+        rbAdvantageBadge.textContent = `+$${result.diffNetWealth.toLocaleString()} ahead`;
+        rbAdvantageBadge.className = result.buyerAhead
+            ? "text-[10px] text-emerald-700 font-bold"
+            : "text-[10px] text-amber-700 font-bold";
+    }
+
+    if (rbMonthlyDiffDisplay) {
+        const sign = result.initialMonthlyDiff >= 0 ? '+' : '-';
+        rbMonthlyDiffDisplay.textContent = `${sign}$${Math.abs(result.initialMonthlyDiff).toLocaleString()}`;
+    }
+
+    if (rbOutlaySubtext) {
+        rbOutlaySubtext.textContent = `Buy: $${result.initialBuyerMonthlyOutlay.toLocaleString()}/mo | Rent: $${result.initialRentMonthly.toLocaleString()}/mo`;
+    }
+
+    if (rbCrossoverDisplay) {
+        rbCrossoverDisplay.textContent = result.crossoverYear ? `Year ${result.crossoverYear}` : "After 30+ Yrs";
+    }
+
+    if (rbHorizonBadge) {
+        rbHorizonBadge.textContent = `${horizonYears} Years Horizon`;
+    }
+
+    if (rbInsightBadge) {
+        rbInsightBadge.textContent = result.buyerAhead ? "Homeowner Advantage" : "Renter Wealth Advantage";
+    }
+
+    if (rbFactSentence) {
+        if (result.buyerAhead) {
+            rbFactSentence.innerHTML = `Over <strong>${horizonYears} years</strong>, renting at <strong>$${initialRentMonthly.toLocaleString()}/mo</strong> and investing the <strong>$${downPayment.toLocaleString()} down payment</strong> plus the monthly savings yields <strong>$${result.renterFinalNetWealth.toLocaleString()}</strong>. Buying builds <strong>$${result.buyerFinalNetWealth.toLocaleString()}</strong> in net home equity—buying comes out ahead by <strong>$${result.diffNetWealth.toLocaleString()}</strong>!`;
+        } else {
+            rbFactSentence.innerHTML = `Over <strong>${horizonYears} years</strong>, investing the <strong>$${downPayment.toLocaleString()} down payment</strong> and the monthly savings into index funds yields <strong>$${result.renterFinalNetWealth.toLocaleString()}</strong>. Buying builds <strong>$${result.buyerFinalNetWealth.toLocaleString()}</strong> in net home equity—renting and investing wins by <strong>$${result.diffNetWealth.toLocaleString()}</strong>!`;
+        }
+    }
+
+    if (rentBuyChart) {
+        rentBuyChart.data.labels = result.timeline.map(p => `Year ${p.year}`);
+        rentBuyChart.data.datasets[0].data = result.timeline.map(p => p.buyerNetWealth);
+        rentBuyChart.data.datasets[1].data = result.timeline.map(p => p.renterPortfolio);
+        rentBuyChart.update();
+    }
+}
+
+[rbHomePriceInput, rbRentMonthlyInput, rbHoaMonthlyInput].filter(Boolean).forEach(input => {
+    input.addEventListener('input', handleRbCurrencyInput);
+});
+
+[rbDownPercentInput, rbMortgageRateInput, rbReturnRateInput, rbHorizonYearsInput, rbAppreciationRateInput].filter(Boolean).forEach(input => {
+    input.addEventListener('input', updateRentBuyCalculator);
+});
+
+// ============================================================================
 // TAB 4: WHAT'S HAPPENING TODAY CONTROLLER
 // ============================================================================
 // Year Progress
@@ -687,11 +923,34 @@ const mortgageRate = document.getElementById('mortgageRate');
 const mortgageTrend = document.getElementById('mortgageTrend');
 const mortgageDetails = document.getElementById('mortgageDetails');
 
-// Bay Area Gas
+// Gas City Controls
+const gasCitySelect = document.getElementById('gasCitySelect');
+const gasCityHeading = document.getElementById('gasCityHeading');
 const gasPrice = document.getElementById('gasPrice');
 const gasDetails = document.getElementById('gasDetails');
 
-// Mountain View Weather, AQI & Sunset
+let currentGasCity = localStorage.getItem('dailydeck_gas_city') || 'bay-area';
+
+function updateGasDisplay() {
+    const gas = getCityGasPrice(currentGasCity);
+    if (gasCityHeading) gasCityHeading.textContent = gas.name;
+    if (gasPrice) gasPrice.textContent = gas.price;
+    if (gasDetails) gasDetails.textContent = `${gas.type} • ${gas.trend}`;
+}
+
+if (gasCitySelect) {
+    gasCitySelect.value = currentGasCity;
+    gasCitySelect.addEventListener('change', (e) => {
+        currentGasCity = e.target.value;
+        localStorage.setItem('dailydeck_gas_city', currentGasCity);
+        updateGasDisplay();
+    });
+}
+
+// City & Unit Weather Controls
+const weatherCitySelect = document.getElementById('weatherCitySelect');
+const weatherUnitToggle = document.getElementById('weatherUnitToggle');
+const weatherCityHeading = document.getElementById('weatherCityHeading');
 const weatherTemp = document.getElementById('weatherTemp');
 const weatherCondition = document.getElementById('weatherCondition');
 const weatherIcon = document.getElementById('weatherIcon');
@@ -699,15 +958,47 @@ const weatherDetails = document.getElementById('weatherDetails');
 const weatherAqiBadge = document.getElementById('weatherAqiBadge');
 const weatherSunset = document.getElementById('weatherSunset');
 
-// NASA APOD
-const nasaApodImage = document.getElementById('nasaApodImage');
-const nasaApodTitle = document.getElementById('nasaApodTitle');
-const nasaApodExplanation = document.getElementById('nasaApodExplanation');
+let currentWeatherCity = localStorage.getItem('dailydeck_weather_city') || 'mountain-view';
+let currentWeatherUnit = localStorage.getItem('dailydeck_weather_unit') || 'fahrenheit';
 
-// Refresh Button & Timestamp
-const todayTimestamp = document.getElementById('todayTimestamp');
-const btnRefreshToday = document.getElementById('btnRefreshToday');
-const refreshIcon = document.getElementById('refreshIcon');
+if (weatherCitySelect) {
+    weatherCitySelect.value = currentWeatherCity;
+    weatherCitySelect.addEventListener('change', (e) => {
+        currentWeatherCity = e.target.value;
+        localStorage.setItem('dailydeck_weather_city', currentWeatherCity);
+        refreshWeatherOnly();
+    });
+}
+
+if (weatherUnitToggle) {
+    weatherUnitToggle.textContent = currentWeatherUnit === 'celsius' ? '°C' : '°F';
+    weatherUnitToggle.addEventListener('click', () => {
+        currentWeatherUnit = currentWeatherUnit === 'celsius' ? 'fahrenheit' : 'celsius';
+        weatherUnitToggle.textContent = currentWeatherUnit === 'celsius' ? '°C' : '°F';
+        localStorage.setItem('dailydeck_weather_unit', currentWeatherUnit);
+        refreshWeatherOnly();
+    });
+}
+
+async function refreshWeatherOnly() {
+    try {
+        const weather = await fetchCityWeather(currentWeatherCity, currentWeatherUnit);
+        if (weatherCityHeading) weatherCityHeading.textContent = weather.cityName;
+        if (weatherTemp) weatherTemp.textContent = weather.temp;
+        if (weatherCondition) weatherCondition.textContent = weather.condition;
+        if (weatherIcon) weatherIcon.textContent = weather.icon;
+        if (weatherDetails) weatherDetails.textContent = `${weather.apparent} • ${weather.details}`;
+        if (weatherAqiBadge) {
+            weatherAqiBadge.textContent = `AQI: ${weather.aqi} (${weather.aqiCategory})`;
+            weatherAqiBadge.className = `text-xs font-bold px-2 py-0.5 rounded-md border ${weather.aqiColorClass}`;
+        }
+        if (weatherSunset) {
+            weatherSunset.textContent = `${weather.sunsetTime} (${weather.sunsetCountdown})`;
+        }
+    } catch (e) {
+        console.warn('Weather update note:', e);
+    }
+}
 
 async function refreshTodayDashboard() {
     if (refreshIcon) refreshIcon.classList.add('animate-spin');
@@ -730,14 +1021,15 @@ async function refreshTodayDashboard() {
     }
 
     try {
-        // Fetch weather, markets, and NASA APOD concurrently
+        // Fetch weather for selected city/unit, markets, and NASA APOD concurrently
         const [weather, markets, apod] = await Promise.all([
-            fetchMountainViewFull(),
+            fetchCityWeather(currentWeatherCity, currentWeatherUnit),
             fetchMarketsAndCrypto(),
             fetchNasaApod()
         ]);
 
-        // 1. Mountain View Weather + AQI + Sunset
+        // 1. Weather + AQI + Sunset
+        if (weatherCityHeading) weatherCityHeading.textContent = weather.cityName;
         if (weatherTemp) weatherTemp.textContent = weather.temp;
         if (weatherCondition) weatherCondition.textContent = weather.condition;
         if (weatherIcon) weatherIcon.textContent = weather.icon;
@@ -791,19 +1083,8 @@ async function refreshTodayDashboard() {
         if (mortgageTrend) mortgageTrend.textContent = markets.mortgage30.change;
         if (mortgageDetails) mortgageDetails.textContent = markets.mortgage30.trend;
 
-        // 6. Bay Area Gas Price
-        if (gasPrice) gasPrice.textContent = markets.bayAreaGas.price;
-        if (gasDetails) gasDetails.textContent = `${markets.bayAreaGas.type} • ${markets.bayAreaGas.trend}`;
-
-        // 7. NASA APOD
-        if (apod) {
-            if (nasaApodImage && apod.imageUrl) {
-                nasaApodImage.src = apod.imageUrl;
-                nasaApodImage.alt = apod.title;
-            }
-            if (nasaApodTitle && apod.title) nasaApodTitle.textContent = apod.title;
-            if (nasaApodExplanation && apod.explanation) nasaApodExplanation.textContent = apod.explanation;
-        }
+        // 6. Gas Price
+        updateGasDisplay();
 
         if (todayTimestamp) {
             todayTimestamp.textContent = `Updated at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -821,41 +1102,213 @@ if (btnRefreshToday) {
     btnRefreshToday.addEventListener('click', refreshTodayDashboard);
 }
 
-// Cat Interaction (Meow / Purr Speech Bubble)
+// ============================================================================
+// LOCAL STORAGE PERSISTENCE ENGINE
+// ============================================================================
+function saveCalculatorInputs() {
+    const data = {
+        // FIRE
+        age: ageInput ? ageInput.value : '',
+        coastAge: coastAgeInput ? coastAgeInput.value : '',
+        netWorth: netWorthInput ? netWorthInput.value : '',
+        monthly: monthlyInput ? monthlyInput.value : '',
+        expenses: expensesInput ? expensesInput.value : '',
+        returns: returnInput ? returnInput.value : '',
+        swr: swrInput ? swrInput.value : '',
+
+        // Metabolic
+        sex: selectedSex,
+        metaAge: metaAgeInput ? metaAgeInput.value : '',
+        metaWeight: metaWeightInput ? metaWeightInput.value : '',
+        metaFeet: metaHeightFeetInput ? metaHeightFeetInput.value : '',
+        metaInches: metaHeightInchesInput ? metaHeightInchesInput.value : '',
+        metaActivity: metaActivitySelect ? metaActivitySelect.value : '',
+        metaDeficit: metaDeficitGoalSelect ? metaDeficitGoalSelect.value : '',
+
+        // Compound
+        ciPrincipal: ciPrincipalInput ? ciPrincipalInput.value : '',
+        ciMonthly: ciMonthlyInput ? ciMonthlyInput.value : '',
+        ciYears: ciYearsInput ? ciYearsInput.value : '',
+        ciRate: ciRateInput ? ciRateInput.value : '',
+        ciFreq: ciFrequencySelect ? ciFrequencySelect.value : '',
+
+        // Rent vs Buy
+        rbHomePrice: rbHomePriceInput ? rbHomePriceInput.value : '',
+        rbDownPercent: rbDownPercentInput ? rbDownPercentInput.value : '',
+        rbRentMonthly: rbRentMonthlyInput ? rbRentMonthlyInput.value : '',
+        rbHoaMonthly: rbHoaMonthlyInput ? rbHoaMonthlyInput.value : '',
+        rbMortgageRate: rbMortgageRateInput ? rbMortgageRateInput.value : '',
+        rbReturnRate: rbReturnRateInput ? rbReturnRateInput.value : '',
+        rbHorizonYears: rbHorizonYearsInput ? rbHorizonYearsInput.value : '',
+        rbAppreciationRate: rbAppreciationRateInput ? rbAppreciationRateInput.value : ''
+    };
+
+    try {
+        localStorage.setItem('dailydeck_user_inputs', JSON.stringify(data));
+    } catch (e) {
+        console.warn('LocalStorage save error:', e);
+    }
+}
+
+function loadCalculatorInputs() {
+    try {
+        const raw = localStorage.getItem('dailydeck_user_inputs');
+        if (!raw) return;
+        const data = JSON.parse(raw);
+
+        // FIRE
+        if (data.age && ageInput) ageInput.value = data.age;
+        if (data.coastAge && coastAgeInput) coastAgeInput.value = data.coastAge;
+        if (data.netWorth && netWorthInput) netWorthInput.value = data.netWorth;
+        if (data.monthly && monthlyInput) monthlyInput.value = data.monthly;
+        if (data.expenses && expensesInput) expensesInput.value = data.expenses;
+        if (data.returns && returnInput) returnInput.value = data.returns;
+        if (data.swr && swrInput) swrInput.value = data.swr;
+
+        // Metabolic
+        if (data.sex) setSex(data.sex);
+        if (data.metaAge && metaAgeInput) metaAgeInput.value = data.metaAge;
+        if (data.metaWeight && metaWeightInput) metaWeightInput.value = data.metaWeight;
+        if (data.metaFeet && metaHeightFeetInput) metaHeightFeetInput.value = data.metaFeet;
+        if (data.metaInches && metaHeightInchesInput) metaHeightInchesInput.value = data.metaInches;
+        if (data.metaActivity && metaActivitySelect) metaActivitySelect.value = data.metaActivity;
+        if (data.metaDeficit !== undefined && metaDeficitGoalSelect) metaDeficitGoalSelect.value = data.metaDeficit;
+
+        // Compound
+        if (data.ciPrincipal && ciPrincipalInput) ciPrincipalInput.value = data.ciPrincipal;
+        if (data.ciMonthly && ciMonthlyInput) ciMonthlyInput.value = data.ciMonthly;
+        if (data.ciYears && ciYearsInput) ciYearsInput.value = data.ciYears;
+        if (data.ciRate && ciRateInput) ciRateInput.value = data.ciRate;
+        if (data.ciFreq && ciFrequencySelect) ciFrequencySelect.value = data.ciFreq;
+
+        // Rent vs Buy
+        if (data.rbHomePrice && rbHomePriceInput) rbHomePriceInput.value = data.rbHomePrice;
+        if (data.rbDownPercent && rbDownPercentInput) rbDownPercentInput.value = data.rbDownPercent;
+        if (data.rbRentMonthly && rbRentMonthlyInput) rbRentMonthlyInput.value = data.rbRentMonthly;
+        if (data.rbHoaMonthly && rbHoaMonthlyInput) rbHoaMonthlyInput.value = data.rbHoaMonthly;
+        if (data.rbMortgageRate && rbMortgageRateInput) rbMortgageRateInput.value = data.rbMortgageRate;
+        if (data.rbReturnRate && rbReturnRateInput) rbReturnRateInput.value = data.rbReturnRate;
+        if (data.rbHorizonYears && rbHorizonYearsInput) rbHorizonYearsInput.value = data.rbHorizonYears;
+        if (data.rbAppreciationRate && rbAppreciationRateInput) rbAppreciationRateInput.value = data.rbAppreciationRate;
+    } catch (e) {
+        console.warn('LocalStorage load error:', e);
+    }
+}
+
+// Attach auto-save listener to all inputs
+[
+    ageInput, coastAgeInput, netWorthInput, monthlyInput, expensesInput, returnInput, swrInput,
+    metaAgeInput, metaWeightInput, metaHeightFeetInput, metaHeightInchesInput, metaActivitySelect, metaDeficitGoalSelect,
+    ciPrincipalInput, ciMonthlyInput, ciYearsInput, ciRateInput, ciFrequencySelect,
+    rbHomePriceInput, rbDownPercentInput, rbRentMonthlyInput, rbHoaMonthlyInput,
+    rbMortgageRateInput, rbReturnRateInput, rbHorizonYearsInput, rbAppreciationRateInput
+].filter(Boolean).forEach(el => {
+    el.addEventListener('input', saveCalculatorInputs);
+    el.addEventListener('change', saveCalculatorInputs);
+});
+
+// ============================================================================
+// PIXEL CAT COMPANION: MANUAL SLEEP BUTTON, NAPPING & PURRS
+// ============================================================================
 const pixelCatContainer = document.getElementById('pixelCatContainer');
-if (pixelCatContainer) {
+const pixelCat = document.getElementById('pixelCat');
+const catNapToggleBtn = document.getElementById('catNapToggleBtn');
+const catNapIcon = document.getElementById('catNapIcon');
+const catNapLabel = document.getElementById('catNapLabel');
+
+if (pixelCatContainer && pixelCat) {
     const meowQuotes = [
         "meow! 🐾",
         "purrrrr... 🐱",
-        "checking Loren's stuff! 📈",
+        "checking Daily Deck! 📈",
         "don't forget to stay hydrated! 💧",
         "market looking fluffy today ✨",
         "mrrp? 🐟"
     ];
-    let bubbleTimeout = null;
 
-    pixelCatContainer.addEventListener('click', () => {
-        // Remove existing bubble if any
+    let bubbleTimeout = null;
+    let isNapping = false;
+
+    function showCatBubble(text) {
         const existingBubble = document.getElementById('catSpeechBubble');
         if (existingBubble) existingBubble.remove();
         if (bubbleTimeout) clearTimeout(bubbleTimeout);
 
         const bubble = document.createElement('div');
         bubble.id = 'catSpeechBubble';
-        bubble.className = 'absolute -top-8 left-6 bg-white border border-slate-300 shadow-md text-[11px] font-bold text-slate-800 px-2.5 py-1 rounded-xl whitespace-nowrap animate-bounce z-50 pointer-events-none';
-        bubble.textContent = meowQuotes[Math.floor(Math.random() * meowQuotes.length)];
+        bubble.className = 'absolute -top-10 left-6 bg-white border border-slate-300 shadow-md text-[11px] font-bold text-slate-800 px-2.5 py-1 rounded-xl whitespace-nowrap animate-bounce z-50 pointer-events-none';
+        bubble.textContent = text;
         pixelCatContainer.appendChild(bubble);
 
         bubbleTimeout = setTimeout(() => {
             if (bubble) bubble.remove();
-        }, 2400);
+        }, 2500);
+    }
+
+    function toggleCatNap() {
+        isNapping = !isNapping;
+        if (isNapping) {
+            pixelCat.classList.add('cat-napping');
+            if (catNapIcon) catNapIcon.textContent = '☀️';
+            if (catNapLabel) catNapLabel.textContent = 'Wake';
+            showCatBubble("zzzz... taking a cozy nap 💤");
+        } else {
+            pixelCat.classList.remove('cat-napping');
+            if (catNapIcon) catNapIcon.textContent = '💤';
+            if (catNapLabel) catNapLabel.textContent = 'Sleep';
+            showCatBubble("yawn... I'm awake and strolling! 😺");
+        }
+    }
+
+    if (catNapToggleBtn) {
+        catNapToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleCatNap();
+        });
+    }
+
+    // Cat body click interaction
+    pixelCat.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (isNapping) {
+            showCatBubble("snore... zzz 💤 (press Wake)");
+        } else {
+            showCatBubble(meowQuotes[Math.floor(Math.random() * meowQuotes.length)]);
+        }
     });
 }
 
 // ============================================================================
+// MOBILE PULL-TO-REFRESH DETECTOR
+// ============================================================================
+let touchStartY = 0;
+let isPulling = false;
+
+window.addEventListener('touchstart', (e) => {
+    if (window.scrollY === 0) {
+        touchStartY = e.touches[0].clientY;
+        isPulling = true;
+    } else {
+        isPulling = false;
+    }
+}, { passive: true });
+
+window.addEventListener('touchmove', (e) => {
+    if (!isPulling) return;
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - touchStartY;
+    if (diff > 85 && window.scrollY === 0) {
+        isPulling = false;
+        refreshTodayDashboard();
+    }
+}, { passive: true });
+
+// ============================================================================
 // APP START
 // ============================================================================
+loadCalculatorInputs();
 initFireChart();
 updateFireCalculator();
 updateMetabolicCalculator();
+updateRentBuyCalculator();
 switchTab('today');

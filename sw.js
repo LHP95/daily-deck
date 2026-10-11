@@ -1,13 +1,15 @@
-const CACHE_NAME = 'lorens-stuff-v3';
+const CACHE_NAME = 'daily-deck-v8';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './calculator.js',
   './metabolic.js',
   './compound.js',
+  './rent_vs_buy.js',
   './today.js',
   './app.js',
   './manifest.json',
+  './manifest.json?v=8',
   './cat_walk_spritesheet.png'
 ];
 
@@ -36,8 +38,8 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Network first with fallback to cache for dynamic / API requests, cache first for app shell
-  if (event.request.url.includes('api.') || event.request.url.includes('query1.finance') || event.request.url.includes('nasa.gov')) {
+  // Network first for APIs and manifest.json so metadata updates propagate immediately
+  if (event.request.url.includes('manifest.json') || event.request.url.includes('api.') || event.request.url.includes('query1.finance') || event.request.url.includes('nasa.gov')) {
     event.respondWith(
       fetch(event.request).catch(() => caches.match(event.request))
     );

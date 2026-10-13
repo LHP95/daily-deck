@@ -140,15 +140,57 @@ async function fetchCityWeather(cityKey = 'mountain-view', unit = 'fahrenheit') 
     return weatherResult;
 }
 
+// Helper to fetch stock / index quotes safely across browser CORS boundaries
+async function fetchYahooQuote(symbol) {
+    // Tier 1: Cloudflare Pages Edge Function (zero CORS restriction when hosted on Cloudflare)
+    try {
+        const cfRes = await fetch(`/api/stock?symbol=${encodeURIComponent(symbol)}`, {
+            signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined
+        });
+        if (cfRes.ok) {
+            const data = await cfRes.json();
+            if (data && data.chart && data.chart.result && data.chart.result[0]) {
+                return data.chart.result[0].meta;
+            }
+        }
+    } catch (e) {
+        // Normal fallback when running in local development or static host
+    }
+
+    // Tier 2: AllOrigins proxy for client-side CORS bypass
+    try {
+        const yahooUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch(proxyUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+            const wrapped = await res.json();
+            if (wrapped && wrapped.contents) {
+                const data = JSON.parse(wrapped.contents);
+                if (data && data.chart && data.chart.result && data.chart.result[0]) {
+                    return data.chart.result[0].meta;
+                }
+            }
+        }
+    } catch (e) {
+        console.info(`Proxy quote note for ${symbol}:`, e.message);
+    }
+
+    return null;
+}
+
 // 4. Fetch Market & Financial Data
 async function fetchMarketsAndCrypto() {
     const result = {
         sp500: {
-            price: '7,811.54',
-            change: '+46.18',
-            percent: '+0.60%',
-            isPositive: true,
-            range: 'Day Range: 7,779 – 7,820 • 52w High: 7,844'
+            price: '7,807.24',
+            change: '-4.30',
+            percent: '-0.05%',
+            isPositive: false,
+            range: 'Day Range: 7,797 – 7,822 • 52w High: 7,845'
         },
         fearAndGreed: {
             score: 61,
@@ -176,39 +218,52 @@ async function fetchMarketsAndCrypto() {
         }
     };
 
-    // Live Fetches
+    // Live Concurrency Fetches
     try {
-        const [spRes, googlRes, btcRes, fngRes] = await Promise.allSettled([
-            fetch('https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?interval=1d&range=1d'),
-            fetch('https://query1.finance.yahoo.com/v8/finance/chart/GOOGL?interval=1d&range=1d'),
+        const [spMeta, googlMeta, btcRes, fngRes] = await Promise.allSettled([
+            fetchYahooQuote('^GSPC'),
+            fetchYahooQuote('GOOGL'),
             fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot'),
             fetch('https://api.alternative.me/fng/?limit=1')
         ]);
 
         // S&P 500
-        if (spRes.status === 'fulfilled' && spRes.value.ok) {
-            const spData = await spRes.value.json();
-            const meta = spData.chart.result[0].meta;
+        if (spMeta.status === 'fulfilled' && spMeta.value) {
+            const meta = spMeta.value;
             const price = meta.regularMarketPrice || meta.fulldayPrice;
-            const change = meta.fulldayChange || 0;
-            const pct = meta.regularMarketChangePercent || meta.fulldayChangePercent || 0;
+            const prevClose = meta.chartPreviousClose || meta.previousClose || price;
+            const change = meta.fulldayChange !== undefined ? meta.fulldayChange : (price - prevClose);
+            const pct = meta.regularMarketChangePercent !== undefined 
+                ? meta.regularMarketChangePercent 
+                : (prevClose > 0 ? ((change / prevClose) * 100) : 0);
+            const dayLow = meta.regularMarketDayLow || (price * 0.995);
+            const dayHigh = meta.regularMarketDayHigh || (price * 1.005);
+            const high52 = meta.fiftyTwoWeekHigh || (price * 1.05);
+
             result.sp500.price = Number(price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             result.sp500.change = (change >= 0 ? '+' : '') + change.toFixed(2);
             result.sp500.percent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
             result.sp500.isPositive = change >= 0;
+            result.sp500.range = `Day Range: ${Math.round(dayLow).toLocaleString()} – ${Math.round(dayHigh).toLocaleString()} • 52w High: ${Math.round(high52).toLocaleString()}`;
         }
 
         // GOOGL
-        if (googlRes.status === 'fulfilled' && googlRes.value.ok) {
-            const gData = await googlRes.value.json();
-            const meta = gData.chart.result[0].meta;
+        if (googlMeta.status === 'fulfilled' && googlMeta.value) {
+            const meta = googlMeta.value;
             const price = meta.regularMarketPrice || meta.fulldayPrice;
-            const change = meta.fulldayChange || 0;
-            const pct = meta.regularMarketChangePercent || meta.fulldayChangePercent || 0;
+            const prevClose = meta.chartPreviousClose || meta.previousClose || price;
+            const change = meta.fulldayChange !== undefined ? meta.fulldayChange : (price - prevClose);
+            const pct = meta.regularMarketChangePercent !== undefined 
+                ? meta.regularMarketChangePercent 
+                : (prevClose > 0 ? ((change / prevClose) * 100) : 0);
+            const dayLow = meta.regularMarketDayLow || (price * 0.99);
+            const dayHigh = meta.regularMarketDayHigh || (price * 1.01);
+
             result.googl.price = `$${Number(price).toFixed(2)}`;
-            result.googl.change = (change >= 0 ? '+' : '') + `$${Math.abs(change).toFixed(2)}`;
+            result.googl.change = (change >= 0 ? '+' : '-') + `$${Math.abs(change).toFixed(2)}`;
             result.googl.percent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
             result.googl.isPositive = change >= 0;
+            result.googl.range = `Day Range: $${Number(dayLow).toFixed(2)} – $${Number(dayHigh).toFixed(2)} • MktCap: $4.3T`;
         }
 
         // Bitcoin
@@ -235,7 +290,7 @@ async function fetchMarketsAndCrypto() {
             }
         }
     } catch (e) {
-        console.info('Market snapshot used:', e);
+        console.info('Market snapshot note:', e);
     }
 
     return result;

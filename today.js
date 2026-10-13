@@ -157,12 +157,31 @@ async function fetchYahooQuote(symbol) {
         // Normal fallback when running in local development or static host
     }
 
-    // Tier 2: AllOrigins proxy for client-side CORS bypass
+    // Tier 2: AllOrigins RAW endpoint (direct JSON, fast)
+    try {
+        const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`;
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl)}`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const res = await fetch(proxyUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.chart && data.chart.result && data.chart.result[0]) {
+                return data.chart.result[0].meta;
+            }
+        }
+    } catch (e) {
+        // Fallback to Tier 3
+    }
+
+    // Tier 3: AllOrigins GET wrapped endpoint
     try {
         const yahooUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 4500);
         const res = await fetch(proxyUrl, { signal: controller.signal });
         clearTimeout(timeoutId);
 
@@ -198,11 +217,11 @@ async function fetchMarketsAndCrypto() {
             badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300'
         },
         googl: {
-            price: '$351.66',
-            change: '+$3.31',
-            percent: '+0.95%',
+            price: '$352.72',
+            change: '+$1.06',
+            percent: '+0.30%',
             isPositive: true,
-            range: 'Day Range: $350.31 – $354.70 • MktCap: $4.3T'
+            range: 'Day Range: $350.50 – $356.50 • MktCap: $4.3T'
         },
         bitcoin: {
             price: '$82,894',
